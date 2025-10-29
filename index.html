@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>공원 순찰 쓰레기 인식 테스트</title>
+
+  <!-- 폰트 & 스타일 -->
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Pretendard', sans-serif;
+      background-color: #f5f7fa;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #222;
+    }
+    h1 {
+      color: #0066ff;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .card {
+      background: white;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      margin: 8px 0;
+      font-size: 16px;
+      border: none;
+      border-radius: 12px;
+      background-color: #0066ff;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { background-color: #0051cc; }
+    #cameraSection { display: none; flex-direction: column; align-items: center; }
+    video { border-radius: 16px; width: 100%; max-width: 360px; }
+    #result { font-size: 18px; margin-top: 12px; font-weight: 600; }
+  </style>
+</head>
+
+<body>
+  <div class="card" id="mainMenu">
+    <h1>기계 선택</h1>
+    <p>테스트할 기계를 선택하세요</p>
+    <button onclick="selectMachine(1)">1번 기계</button>
+    <button onclick="selectMachine(2)">2번 기계</button>
+    <button onclick="selectMachine(3)">3번 기계</button>
+  </div>
+
+  <div class="card" id="cameraSection">
+    <h1 id="machineTitle"></h1>
+    <video id="webcam" autoplay playsinline muted></video>
+    <div id="result">인식 중...</div>
+    <button onclick="goHome()">← 돌아가기</button>
+  </div>
+
+  <!-- Teachable Machine & Firebase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <script type="module">
+    // Firebase SDK 불러오기
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+    // 🔹 주신 Firebase 설정값
+    const firebaseConfig = {
+      apiKey: "AIzaSyALgWwQfaOZL-s3JbjWxM9Y9YL5fdsSQv4",
+      authDomain: "iot-team-1643a.firebaseapp.com",
+      databaseURL: "https://iot-team-1643a-default-rtdb.firebaseio.com",
+      projectId: "iot-team-1643a",
+      storageBucket: "iot-team-1643a.firebasestorage.app",
+      messagingSenderId: "198716312891",
+      appId: "1:198716312891:web:3a4f625784a3b65d6efb1e",
+      measurementId: "G-BNYKB16H85"
+    };
+
+    // Firebase 초기화
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // 🔹 Teachable Machine 설정
+    const URL = "./model/"; // 모델 폴더 경로
+    let model, webcam, maxPredictions;
+    let currentMachine = 0;
+
+    window.selectMachine = async function(num) {
+      currentMachine = num;
+      document.getElementById("mainMenu").style.display = "none";
+      document.getElementById("cameraSection").style.display = "flex";
+      document.getElementById("machineTitle").textContent = `${num}번 기계`;
+
+      await initModel();
+      loop();
+    }
+
+    window.goHome = function() {
+      if (webcam) webcam.stop();
+      document.getElementById("cameraSection").style.display = "none";
+      document.getElementById("mainMenu").style.display = "block";
+    }
+
+    async function initModel() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      const flip = true;
+      webcam = new tmImage.Webcam(360, 360, flip);
+      await webcam.setup();
+      await webcam.play();
+      document.getElementById("webcam").srcObject = webcam.webcam;
+      window.requestAnimationFrame(loop);
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      let highest = prediction[0];
+      for (let i = 1; i < prediction.length; i++) {
+        if (prediction[i].probability > highest.probability) {
+          highest = prediction[i];
+        }
+      }
+
+      const resultEl = document.getElementById("result");
+      resultEl.textContent = `${highest.className} (${(highest.probability * 100).toFixed(1)}%)`;
+
+      // Firebase에 저장
+      set(ref(db, `machine_${currentMachine}`), {
+        detected: highest.className,
+        confidence: (highest.probability * 100).toFixed(1),
+        timestamp: Date.now()
+      });
+    }
+  </script>
+</body>
+</html>
