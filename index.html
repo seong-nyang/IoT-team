@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>공원 순찰 쓰레기통</title>
+  <title>쓰레기 인식 테스트</title>
+
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: 'Pretendard', sans-serif;
@@ -17,46 +17,14 @@
       align-items: center;
       justify-content: center;
       height: 100vh;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-      margin-bottom: 30px;
-      text-align: center;
-    }
-
-    .machine-select {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-
-    .machine-btn {
-      background: linear-gradient(135deg, #007aff, #00c6ff);
-      border: none;
-      border-radius: 16px;
-      color: white;
-      padding: 15px 30px;
-      font-size: 1.2rem;
-      font-weight: 600;
-      width: 200px;
-      transition: transform 0.15s ease;
-    }
-    .machine-btn:active {
-      transform: scale(0.96);
-    }
-
-    #camera-page {
-      display: none;
-      flex-direction: column;
-      align-items: center;
+      overflow: hidden;
+      transition: all 0.3s ease;
     }
 
     video {
       width: 90vw;
       max-width: 400px;
-      height: auto;
-      border-radius: 16px;
+      border-radius: 12px;
       background: #111;
       object-fit: cover;
     }
@@ -64,40 +32,60 @@
     #result {
       margin-top: 20px;
       background: rgba(255,255,255,0.85);
-      color: #007aff;
+      color: #0066ff;
       font-weight: 600;
       font-size: 22px;
       padding: 10px 20px;
       border-radius: 16px;
     }
 
-    #back-btn {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      padding: 8px 14px;
-      background: rgba(0,0,0,0.4);
+    button {
+      background: #111;
       color: white;
       border: none;
       border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #222;
+    }
+
+    .home {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #backBtn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0,0,0,0.4);
       font-size: 14px;
+      padding: 8px 14px;
     }
   </style>
 </head>
 <body>
-  <!-- ✅ 기계 선택 화면 -->
-  <div id="select-page">
-    <h1>기계를 선택하세요</h1>
-    <div class="machine-select">
-      <button class="machine-btn" onclick="startCamera('machine_1')">1번 기계</button>
-      <button class="machine-btn" onclick="startCamera('machine_2')">2번 기계</button>
-      <button class="machine-btn" onclick="startCamera('machine_3')">3번 기계</button>
-    </div>
+  <!-- 홈 화면 -->
+  <div id="home" class="home">
+    <h2>기계 선택</h2>
+    <button onclick="selectMachine(1)">1번 기계</button>
+    <button onclick="selectMachine(2)">2번 기계</button>
+    <button onclick="selectMachine(3)">3번 기계</button>
   </div>
 
-  <!-- ✅ 카메라 화면 -->
-  <div id="camera-page">
-    <button id="back-btn" onclick="goHome()">← 뒤로</button>
+  <!-- 인식 화면 -->
+  <div id="cameraPage" class="hidden">
+    <button id="backBtn" onclick="goHome()">← 뒤로</button>
     <video id="webcam" autoplay playsinline muted></video>
     <div id="result">카메라 준비 중...</div>
   </div>
@@ -125,17 +113,28 @@
     const db = getDatabase(app);
 
     const URL = "./model/"; // Teachable Machine 모델 폴더
-    let model, webcamStream, selectedMachine = "";
+    let model, webcamStream, selectedMachine = null;
 
-    const selectPage = document.getElementById("select-page");
-    const cameraPage = document.getElementById("camera-page");
-    const video = document.getElementById("webcam");
-    const result = document.getElementById("result");
+    // 기계 선택 함수
+    window.selectMachine = async function(num) {
+      selectedMachine = num;
+      document.getElementById("home").classList.add("hidden");
+      document.getElementById("cameraPage").classList.remove("hidden");
+      initCamera();
+    };
 
-    async function startCamera(machineName) {
-      selectedMachine = machineName;
-      selectPage.style.display = "none";
-      cameraPage.style.display = "flex";
+    // 홈으로 돌아가기
+    window.goHome = function() {
+      if (webcamStream) webcamStream.getTracks().forEach(track => track.stop());
+      document.getElementById("cameraPage").classList.add("hidden");
+      document.getElementById("home").classList.remove("hidden");
+      selectedMachine = null;
+    };
+
+    // 카메라 + 모델 초기화
+    async function initCamera() {
+      const video = document.getElementById("webcam");
+      const result = document.getElementById("result");
 
       try {
         webcamStream = await navigator.mediaDevices.getUserMedia({
@@ -154,10 +153,11 @@
       model = await tmImage.load(modelURL, metadataURL);
       result.textContent = "인식 준비 완료";
 
-      startPrediction();
+      startPrediction(video, result);
     }
 
-    async function startPrediction() {
+    // 인식 루프
+    async function startPrediction(video, result) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
@@ -172,23 +172,18 @@
 
           result.textContent = `${top.className} (${(top.probability * 100).toFixed(1)}%)`;
 
-          await set(ref(db, selectedMachine), {
-            detected: top.className,
-            confidence: (top.probability * 100).toFixed(1),
-            timestamp: Date.now()
-          });
+          // Firebase 업로드
+          if (selectedMachine)
+            await set(ref(db, `machine_${selectedMachine}`), {
+              detected: top.className,
+              confidence: (top.probability * 100).toFixed(1),
+              timestamp: Date.now()
+            });
         }
-        setTimeout(loop, 500);
+        setTimeout(loop, 700); // 0.7초마다 갱신
       }
       loop();
     }
-
-    window.goHome = function() {
-      if (webcamStream) webcamStream.getTracks().forEach(track => track.stop());
-      cameraPage.style.display = "none";
-      selectPage.style.display = "flex";
-      result.textContent = "카메라 준비 중...";
-    };
   </script>
 </body>
 </html>
