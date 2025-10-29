@@ -3,89 +3,133 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>쓰레기 인식 테스트</title>
+  <title>Smart Trash Detector</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #0c0c0c;
+      --text: #ffffff;
+      --accent: #00baff;
+      --card: #151515;
+    }
+
+    * {
+      box-sizing: border-box;
+      transition: all 0.25s ease;
+    }
+
     body {
       margin: 0;
-      font-family: 'Pretendard', sans-serif;
-      background: #000;
-      color: white;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
       overflow: hidden;
-      transition: all 0.3s ease;
     }
 
-    video {
-      width: 90vw;
-      max-width: 400px;
-      border-radius: 12px;
-      background: #111;
-      object-fit: cover;
-    }
-
-    #result {
-      margin-top: 20px;
-      background: rgba(255,255,255,0.85);
-      color: #0066ff;
+    h1, h2 {
+      margin: 0;
       font-weight: 600;
-      font-size: 22px;
-      padding: 10px 20px;
-      border-radius: 16px;
     }
 
-    button {
-      background: #111;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    button:hover {
-      background: #222;
-    }
-
-    .home {
+    .screen {
+      width: 100%;
+      max-width: 420px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      align-items: center;
+      text-align: center;
+      padding: 24px;
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .hidden {
       display: none !important;
     }
 
+    .btn {
+      width: 100%;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    video {
+      width: 90%;
+      max-width: 380px;
+      border-radius: 16px;
+      background: #111;
+      margin-top: 16px;
+      box-shadow: 0 0 12px rgba(0,186,255,0.25);
+      object-fit: cover;
+    }
+
+    #result {
+      margin-top: 20px;
+      background: rgba(255,255,255,0.95);
+      color: #007cff;
+      font-weight: 600;
+      font-size: 20px;
+      padding: 12px 20px;
+      border-radius: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
     #backBtn {
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(0,0,0,0.4);
+      background: rgba(255,255,255,0.1);
+      border: none;
+      border-radius: 8px;
+      color: white;
       font-size: 14px;
       padding: 8px 14px;
     }
+
+    #backBtn:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
   </style>
 </head>
 <body>
   <!-- 홈 화면 -->
-  <div id="home" class="home">
-    <h2>기계 선택</h2>
-    <button onclick="selectMachine(1)">1번 기계</button>
-    <button onclick="selectMachine(2)">2번 기계</button>
-    <button onclick="selectMachine(3)">3번 기계</button>
+  <div id="home" class="screen">
+    <h1 style="font-size: 24px; margin-bottom: 10px;">IoT Test</h1>
+    <h2 style="font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: 30px;">
+      기계를 선택하세요
+    </h2>
+    <button class="btn" onclick="selectMachine(1)">1번 기계</button>
+    <button class="btn" onclick="selectMachine(2)">2번 기계</button>
+    <button class="btn" onclick="selectMachine(3)">3번 기계</button>
   </div>
 
-  <!-- 인식 화면 -->
-  <div id="cameraPage" class="hidden">
+  <!-- 카메라 화면 -->
+  <div id="cameraPage" class="screen hidden">
     <button id="backBtn" onclick="goHome()">← 뒤로</button>
+    <h1 style="font-size: 20px;">인식 중...</h1>
     <video id="webcam" autoplay playsinline muted></video>
     <div id="result">카메라 준비 중...</div>
   </div>
@@ -97,7 +141,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
     import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
-    // Firebase 설정
     const firebaseConfig = {
       apiKey: "AIzaSyALgWwQfaOZL-s3JbjWxM9Y9YL5fdsSQv4",
       authDomain: "iot-team-1643a.firebaseapp.com",
@@ -112,10 +155,10 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const URL = "./model/"; // Teachable Machine 모델 폴더
+    const URL = "./model/";
     let model, webcamStream, selectedMachine = null;
 
-    // 기계 선택 함수
+    // 기계 선택
     window.selectMachine = async function(num) {
       selectedMachine = num;
       document.getElementById("home").classList.add("hidden");
@@ -123,7 +166,7 @@
       initCamera();
     };
 
-    // 홈으로 돌아가기
+    // 홈 복귀
     window.goHome = function() {
       if (webcamStream) webcamStream.getTracks().forEach(track => track.stop());
       document.getElementById("cameraPage").classList.add("hidden");
@@ -131,7 +174,7 @@
       selectedMachine = null;
     };
 
-    // 카메라 + 모델 초기화
+    // 카메라 초기화
     async function initCamera() {
       const video = document.getElementById("webcam");
       const result = document.getElementById("result");
@@ -156,7 +199,7 @@
       startPrediction(video, result);
     }
 
-    // 인식 루프
+    // 예측 루프
     async function startPrediction(video, result) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -172,7 +215,6 @@
 
           result.textContent = `${top.className} (${(top.probability * 100).toFixed(1)}%)`;
 
-          // Firebase 업로드
           if (selectedMachine)
             await set(ref(db, `machine_${selectedMachine}`), {
               detected: top.className,
@@ -180,7 +222,7 @@
               timestamp: Date.now()
             });
         }
-        setTimeout(loop, 700); // 0.7초마다 갱신
+        setTimeout(loop, 700);
       }
       loop();
     }
