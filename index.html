@@ -115,7 +115,6 @@
   </style>
 </head>
 <body>
-  <!-- 홈 화면 -->
   <div id="home" class="screen">
     <h1 style="font-size: 24px; margin-bottom: 10px;">IoT Test</h1>
     <h2 style="font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: 30px;">
@@ -126,7 +125,6 @@
     <button class="btn" onclick="selectMachine(3)">3번 기계</button>
   </div>
 
-  <!-- 카메라 화면 -->
   <div id="cameraPage" class="screen hidden">
     <button id="backBtn" onclick="goHome()">← 뒤로</button>
     <h1 style="font-size: 20px;">인식 중...</h1>
@@ -199,7 +197,7 @@
       startPrediction(video, result);
     }
 
-    // 예측 루프
+    // 예측 루프 (수정됨)
     async function startPrediction(video, result) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -213,14 +211,30 @@
           const prediction = await model.predict(canvas);
           let top = prediction.reduce((a, b) => a.probability > b.probability ? a : b);
 
+          // ---------------------------------------------------------
+          // [수정] 클래스 이름을 아두이노 명령어로 변환 (pet, can, default, human)
+          // ---------------------------------------------------------
+          let command = "";
+          
+          if (top.className === "pet") {
+              command = "P";  // pet -> Plastic (아두이노 P)
+          } else if (top.className === "can") {
+              command = "C";  // can -> Metal/Can (아두이노 C)
+          } else if (top.className === "default" || top.className === "human") {
+              command = "T";  // 인식불가/사람 -> General (아두이노 T)
+          }
+
           result.textContent = `${top.className} (${(top.probability * 100).toFixed(1)}%)`;
 
-          if (selectedMachine)
+          // Firebase에 저장 (ESP8266이 읽을 수 있게 한 글자로 변환된 command 저장)
+          if (selectedMachine && command !== "") {
             await set(ref(db, `machine_${selectedMachine}`), {
-              detected: top.className,
+              detected: command,    // 여기에 "pet" 대신 "P"가 들어감
+              className: top.className, // 참고용 원본 이름
               confidence: (top.probability * 100).toFixed(1),
               timestamp: Date.now()
             });
+          }
         }
         setTimeout(loop, 700);
       }
